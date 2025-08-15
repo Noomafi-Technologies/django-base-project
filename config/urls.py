@@ -22,21 +22,18 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, Sp
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    
-    # API Versioning
-    path('api/v1/users/', include('users.urls_v1')),
-    
+
     # Legacy support (defaults to v1)
     path('api/users/', include('users.urls_v1')),
-    
+
     # Authentication
     path('api/auth/', include('allauth.urls')),
-    
+
     # Health Checks & Monitoring
     path('', include('common.urls')),  # Custom health checks
     path('health/', include('health_check.urls')),  # Django health check
     path('', include('django_prometheus.urls')),  # Prometheus metrics
-    
+
     # API Documentation
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),

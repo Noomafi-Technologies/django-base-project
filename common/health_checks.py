@@ -146,6 +146,7 @@ def prepare_html_context(response_data):
         'checks': processed_checks,
         'version': response_data['version'],
         'timestamp': response_data['timestamp'],
+        'project_name': getattr(settings, 'PROJECT_NAME', 'Django Base Project'),
     }
     
     return context

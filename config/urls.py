@@ -24,8 +24,11 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/users/', include('users.urls')),
     path('api/auth/', include('allauth.urls')),
-    path('health/', include('health_check.urls')),
-    path('', include('django_prometheus.urls')),
+    
+    # Health Checks & Monitoring
+    path('', include('common.urls')),  # Custom health checks
+    path('health/', include('health_check.urls')),  # Django health check
+    path('', include('django_prometheus.urls')),  # Prometheus metrics
     
     # API Documentation
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),

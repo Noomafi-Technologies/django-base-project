@@ -26,6 +26,7 @@ sendgrid==6.10.0
 # Health checks & Monitoring
 django-health-check==3.17.0
 django-prometheus==2.3.1
+psutil==5.9.6
 
 # API Documentation
 drf-spectacular==0.27.0

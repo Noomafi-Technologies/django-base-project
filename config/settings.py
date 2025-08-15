@@ -68,6 +68,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'allauth.account.middleware.AccountMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'django_prometheus.middleware.PrometheusAfterMiddleware',
@@ -184,6 +185,12 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Custom user model
 AUTH_USER_MODEL = 'users.User'
 
+# Authentication backends
+AUTHENTICATION_BACKENDS = [
+    'users.backends.EmailOrUsernameModelBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]
+
 # Django REST Framework
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
@@ -239,22 +246,22 @@ if EMAIL_BACKEND == 'django.core.mail.backends.smtp.EmailBackend':
 
 DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='noreply@yourcompany.com')
 
-# Sentry Configuration
-if env('SENTRY_DSN', default=''):
-    import sentry_sdk
-    from sentry_sdk.integrations.django import DjangoIntegration
-    from sentry_sdk.integrations.celery import CeleryIntegration
-    
-    sentry_sdk.init(
-        dsn=env('SENTRY_DSN'),
-        integrations=[
-            DjangoIntegration(auto_enabling=True),
-            CeleryIntegration(auto_enabling=True),
-        ],
-        traces_sample_rate=0.1,
-        send_default_pii=True,
-        environment=env('ENVIRONMENT', default='development'),
-    )
+# Sentry Configuration (disabled for local development)
+# if env('SENTRY_DSN', default=''):
+#     import sentry_sdk
+#     from sentry_sdk.integrations.django import DjangoIntegration
+#     from sentry_sdk.integrations.celery import CeleryIntegration
+#     
+#     sentry_sdk.init(
+#         dsn=env('SENTRY_DSN'),
+#         integrations=[
+#             DjangoIntegration(),
+#             CeleryIntegration(),
+#         ],
+#         traces_sample_rate=0.1,
+#         send_default_pii=True,
+#         environment=env('ENVIRONMENT', default='development'),
+#     )
 
 # Celery Configuration
 CELERY_BROKER_URL = env('REDIS_URL')

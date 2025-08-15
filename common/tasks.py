@@ -70,9 +70,9 @@ def database_backup():
             if result.returncode == 0:
                 logger.info(f"Database backup created successfully: {backup_path}")
                 
-                # Upload to S3 if configured
-                if hasattr(settings, 'USE_S3') and settings.USE_S3:
-                    upload_backup_to_s3(backup_path, backup_filename)
+                # Upload to Cloudflare R2 if configured
+                if hasattr(settings, 'USE_CLOUDFLARE_R2') and settings.USE_CLOUDFLARE_R2:
+                    upload_backup_to_r2(backup_path, backup_filename)
                 
                 return f"Backup created: {backup_filename}"
             else:
@@ -92,29 +92,31 @@ def database_backup():
         return f"Backup error: {str(e)}"
 
 
-def upload_backup_to_s3(local_path, filename):
-    """Upload backup file to S3."""
+def upload_backup_to_r2(local_path, filename):
+    """Upload backup file to Cloudflare R2."""
     try:
         import boto3
         from botocore.exceptions import ClientError
         
-        s3_client = boto3.client(
+        # Cloudflare R2 uses S3-compatible API
+        r2_client = boto3.client(
             's3',
+            endpoint_url=settings.AWS_S3_ENDPOINT_URL,
             aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
             aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
             region_name=settings.AWS_S3_REGION_NAME
         )
         
-        s3_key = f"backups/{filename}"
-        s3_client.upload_file(local_path, settings.AWS_STORAGE_BUCKET_NAME, s3_key)
+        r2_key = f"backups/{filename}"
+        r2_client.upload_file(local_path, settings.AWS_STORAGE_BUCKET_NAME, r2_key)
         
-        logger.info(f"Backup uploaded to S3: s3://{settings.AWS_STORAGE_BUCKET_NAME}/{s3_key}")
+        logger.info(f"Backup uploaded to Cloudflare R2: {settings.AWS_STORAGE_BUCKET_NAME}/{r2_key}")
         
         # Remove local file after successful upload
         os.remove(local_path)
         
     except Exception as e:
-        logger.error(f"Failed to upload backup to S3: {str(e)}")
+        logger.error(f"Failed to upload backup to Cloudflare R2: {str(e)}")
 
 
 @shared_task

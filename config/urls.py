@@ -22,7 +22,14 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, Sp
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/users/', include('users.urls')),
+    
+    # API Versioning
+    path('api/v1/users/', include('users.urls_v1')),
+    
+    # Legacy support (defaults to v1)
+    path('api/users/', include('users.urls_v1')),
+    
+    # Authentication
     path('api/auth/', include('allauth.urls')),
     
     # Health Checks & Monitoring

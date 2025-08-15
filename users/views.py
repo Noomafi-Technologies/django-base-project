@@ -4,6 +4,8 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken
 from django.contrib.auth import login, logout
+from django_ratelimit.decorators import ratelimit
+from django.utils.decorators import method_decorator
 from .models import User, Profile
 from .serializers import (
     UserRegistrationSerializer, 
@@ -15,6 +17,7 @@ from .serializers import (
 )
 
 
+@method_decorator(ratelimit(key='ip', rate='5/m', method='POST'), name='post')
 class UserRegistrationView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = UserRegistrationSerializer
@@ -38,6 +41,7 @@ class UserRegistrationView(generics.CreateAPIView):
 
 @api_view(['POST'])
 @permission_classes([permissions.AllowAny])
+@ratelimit(key='ip', rate='10/m', method='POST')
 def login_view(request):
     serializer = UserLoginSerializer(data=request.data, context={'request': request})
     if serializer.is_valid():
@@ -98,6 +102,7 @@ class ProfileUpdateView(generics.UpdateAPIView):
 
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])
+@ratelimit(key='user', rate='3/m', method='POST')
 def change_password(request):
     serializer = PasswordChangeSerializer(data=request.data, context={'request': request})
     if serializer.is_valid():

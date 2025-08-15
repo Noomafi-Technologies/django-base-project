@@ -36,6 +36,7 @@ THIRD_PARTY_APPS = [
     'rest_framework_simplejwt',
     'drf_spectacular',
     'corsheaders',
+    'django_ratelimit',
     'allauth',
     'allauth.account',
     'allauth.socialaccount',
@@ -47,6 +48,8 @@ THIRD_PARTY_APPS = [
     'health_check.cache',
     'health_check.storage',
     'django_prometheus',
+    'storages',
+    'django_crontab',
 ]
 
 LOCAL_APPS = [
@@ -111,9 +114,38 @@ CACHES = {
         'LOCATION': env('REDIS_URL'),
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-        }
-    }
+            'CONNECTION_POOL_KWARGS': {
+                'max_connections': 50,
+                'retry_on_timeout': True,
+            },
+            'COMPRESSOR': 'django_redis.compressors.zlib.ZlibCompressor',
+            'IGNORE_EXCEPTIONS': True,
+        },
+        'KEY_PREFIX': 'django_base',
+        'TIMEOUT': 300,  # 5 minutes default
+    },
+    'sessions': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': env('REDIS_URL'),
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+        },
+        'KEY_PREFIX': 'django_base:sessions',
+    },
+    'api': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': env('REDIS_URL'),
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+        },
+        'KEY_PREFIX': 'django_base:api',
+        'TIMEOUT': 3600,  # 1 hour for API responses
+    },
 }
+
+# Use Redis for sessions
+SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
+SESSION_CACHE_ALIAS = 'sessions'
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
@@ -155,7 +187,9 @@ AUTH_USER_MODEL = 'users.User'
 # Django REST Framework
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
+        'common.authentication.CombinedAuthentication',  # JWT + API Key
         'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'common.authentication.APIKeyAuthentication',
         'rest_framework.authentication.SessionAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
@@ -297,3 +331,44 @@ LOGGING = {
         },
     },
 }
+
+# Rate Limiting
+RATELIMIT_USE_CACHE = 'default'
+RATELIMIT_ENABLE = True
+
+# Cloudflare R2 Settings (for file storage)
+USE_CLOUDFLARE_R2 = env.bool('USE_CLOUDFLARE_R2', default=False)
+
+if USE_CLOUDFLARE_R2:
+    # Cloudflare R2 configuration (S3-compatible)
+    AWS_ACCESS_KEY_ID = env('CLOUDFLARE_R2_ACCESS_KEY_ID', default='')
+    AWS_SECRET_ACCESS_KEY = env('CLOUDFLARE_R2_SECRET_ACCESS_KEY', default='')
+    AWS_STORAGE_BUCKET_NAME = env('CLOUDFLARE_R2_BUCKET_NAME', default='')
+    AWS_S3_ENDPOINT_URL = env('CLOUDFLARE_R2_ENDPOINT_URL', default='')  # e.g., https://accountid.r2.cloudflarestorage.com
+    AWS_S3_REGION_NAME = 'auto'  # Cloudflare R2 uses 'auto'
+    AWS_DEFAULT_ACL = None  # Cloudflare R2 doesn't use ACLs
+    AWS_S3_CUSTOM_DOMAIN = env('CLOUDFLARE_R2_CUSTOM_DOMAIN', default='')  # Your Cloudflare domain
+    
+    AWS_S3_OBJECT_PARAMETERS = {
+        'CacheControl': 'max-age=86400',
+    }
+    
+    # Use custom domain if provided, otherwise use R2 endpoint
+    if AWS_S3_CUSTOM_DOMAIN:
+        domain = AWS_S3_CUSTOM_DOMAIN
+    else:
+        domain = AWS_S3_ENDPOINT_URL.replace('https://', '')
+    
+    # Static files
+    STATICFILES_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+    STATIC_URL = f'https://{domain}/static/'
+    
+    # Media files
+    DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+    MEDIA_URL = f'https://{domain}/media/'
+
+# Crontab settings
+CRONJOBS = [
+    ('0 2 * * *', 'common.tasks.cleanup_expired_tokens'),
+    ('0 3 * * 0', 'common.tasks.weekly_backup'),
+]

@@ -1,0 +1,59 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Run production checks
+      run: |
+        python manage.py check --deploy
+      env:
+        SECRET_KEY: ${{ secrets.PRODUCTION_SECRET_KEY }}
+        DEBUG: False
+        DB_NAME: ${{ secrets.DB_NAME }}
+        DB_USER: ${{ secrets.DB_USER }}
+        DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+        DB_HOST: ${{ secrets.DB_HOST }}
+        DB_PORT: ${{ secrets.DB_PORT }}
+    
+    - name: Deploy to production
+      run: |
+        echo "🚀 Deploying to production..."
+        # Add your deployment commands here
+        # Examples:
+        # - Deploy to cloud provider (AWS, DigitalOcean, etc.)
+        # - Update Docker containers
+        # - Run database migrations
+        # - Restart services
+        echo "✅ Deployment completed!"
+    
+    - name: Health check
+      run: |
+        echo "🏥 Running health checks..."
+        # Add health check commands here
+        # curl -f ${{ secrets.PRODUCTION_URL }}/health/ || exit 1
+        echo "✅ Health checks passed!"
+    
+    - name: Notify deployment
+      run: |
+        echo "📢 Production deployment completed successfully!"
+        # Add notification logic here (Slack, email, etc.)

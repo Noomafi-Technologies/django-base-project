@@ -8,6 +8,7 @@ from django.conf import settings
 from django.db import connections
 from django.core.cache import cache
 from django.http import JsonResponse
+from django.shortcuts import render
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.cache import never_cache
 from rest_framework.decorators import api_view, permission_classes
@@ -15,17 +16,17 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework import status
 import logging
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
 
-@api_view(['GET'])
-@permission_classes([AllowAny])
 @never_cache
 def health_check(request):
     """
     Comprehensive health check endpoint.
     Returns the overall health status of the application.
+    Supports both JSON (API) and HTML (browser) responses based on Accept header.
     """
     try:
         checks = {
@@ -45,22 +46,110 @@ def health_check(request):
         
         response_data = {
             'status': overall_status,
-            'timestamp': request.META.get('HTTP_DATE', ''),
+            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             'checks': checks,
             'version': getattr(settings, 'VERSION', '1.0.0'),
         }
         
-        status_code = status.HTTP_200_OK if overall_status == 'healthy' else status.HTTP_503_SERVICE_UNAVAILABLE
+        # Check if browser request (wants HTML)
+        accept_header = request.META.get('HTTP_ACCEPT', '')
+        wants_html = 'text/html' in accept_header and 'application/json' not in accept_header
         
-        return Response(response_data, status=status_code)
+        if wants_html:
+            # Prepare context for HTML template
+            context = prepare_html_context(response_data)
+            response = render(request, 'common/health_check.html', context)
+            
+            # Set appropriate status code for HTML response
+            if overall_status != 'healthy':
+                response.status_code = 503
+            
+            return response
+        
+        # Return JSON response for API clients
+        status_code = 200 if overall_status == 'healthy' else 503
+        return JsonResponse(response_data, status=status_code)
     
     except Exception as e:
         logger.error(f"Health check failed: {str(e)}")
-        return Response({
+        
+        # Check if browser request for error response too
+        accept_header = request.META.get('HTTP_ACCEPT', '')
+        wants_html = 'text/html' in accept_header and 'application/json' not in accept_header
+        
+        if wants_html:
+            context = {
+                'status': 'error',
+                'error_message': str(e),
+                'version': getattr(settings, 'VERSION', '1.0.0'),
+                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            }
+            response = render(request, 'common/health_check.html', context)
+            response.status_code = 500
+            return response
+        
+        return JsonResponse({
             'status': 'error',
             'message': 'Health check failed',
             'error': str(e)
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        }, status=500)
+
+
+def prepare_html_context(response_data):
+    """
+    Prepare context data for HTML template rendering.
+    Adds visual status classes and human-readable labels.
+    """
+    status = response_data['status']
+    checks = response_data['checks']
+    
+    # Map status to CSS classes and badge colors
+    status_mapping = {
+        'healthy': {'class': 'healthy', 'badge': 'success'},
+        'warning': {'class': 'warning', 'badge': 'warning'},
+        'unhealthy': {'class': 'unhealthy', 'badge': 'danger'},
+        'error': {'class': 'unhealthy', 'badge': 'danger'},
+    }
+    
+    overall_mapping = status_mapping.get(status, {'class': 'unknown', 'badge': 'secondary'})
+    
+    # Process each check to add UI-specific data
+    processed_checks = {}
+    for check_name, check_data in checks.items():
+        check_status = check_data.get('status', False)
+        check_warning = check_data.get('warning', False)
+        
+        if not check_status:
+            check_class = 'unhealthy'
+            check_badge = 'danger'
+            check_text = 'Unhealthy'
+        elif check_warning:
+            check_class = 'warning'
+            check_badge = 'warning'
+            check_text = 'Warning'
+        else:
+            check_class = 'healthy'
+            check_badge = 'success'
+            check_text = 'Healthy'
+        
+        processed_checks[check_name] = {
+            **check_data,
+            'status_class': check_class,
+            'badge_class': check_badge,
+            'status_text': check_text,
+        }
+    
+    context = {
+        'status': status,
+        'overall_status_class': overall_mapping['class'],
+        'status_badge_class': overall_mapping['badge'],
+        'checks': processed_checks,
+        'version': response_data['version'],
+        'timestamp': response_data['timestamp'],
+        'project_name': getattr(settings, 'PROJECT_NAME', 'Django Base Project'),
+    }
+    
+    return context
 
 
 @api_view(['GET'])
